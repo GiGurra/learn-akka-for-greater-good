@@ -3,6 +3,7 @@ package com.github.gigurra
 import java.util.concurrent.TimeUnit
 
 import akka.actor.{Actor, ActorSystem, Props, SupervisorStrategy}
+import akka.pattern.{Backoff, BackoffSupervisor}
 import akka.routing.RoundRobinPool
 import com.github.gigurra.WorkerActor.DoWork
 
@@ -16,17 +17,28 @@ class MasterActor extends Actor {
 
   println(s"Starting $this with tick interval")
 
+  private val supervisedWorkerProps = BackoffSupervisor.props(Backoff.onFailure(
+    Props[WorkerActor],
+    "Worker",
+    minBackoff = FiniteDuration(1, TimeUnit.SECONDS),
+    maxBackoff = FiniteDuration(60, TimeUnit.SECONDS),
+    0.2
+  ))
+
   context.system.scheduler.schedule(FiniteDuration(0, TimeUnit.SECONDS), interval = tickInterval)(self ! Tick)
 
-  // Need to explicitly tell the pool to only restart the failing actor - not all of them!
-  private val workers = context.actorOf(RoundRobinPool(5, supervisorStrategy = MasterActor.this.supervisorStrategy).props(Props[WorkerActor]))
+  // Restart on failure with backoff
+  private val workers = context.actorOf(RoundRobinPool(5).props(supervisedWorkerProps))
+
+  // Restart on failure without backoff - Need to explicitly tell the pool to only restart the failing actor - not all of them!
+  //private val workers = context.actorOf(RoundRobinPool(5, supervisorStrategy = MasterActor.this.supervisorStrategy).props(Props[WorkerActor]))
 
   override def supervisorStrategy: SupervisorStrategy = super.supervisorStrategy
 
   override def receive: Receive = {
     case Tick =>
       println("Master actor Tick!")
-      if (math.random < 0.9) {
+      if (math.random < 0.8) {
         workers ! DoWork(success = true)
       } else {
         workers ! DoWork(success = false)
