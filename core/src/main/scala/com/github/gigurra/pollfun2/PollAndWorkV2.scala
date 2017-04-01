@@ -52,7 +52,7 @@ object MasterActor {
   case object WaitForDbData extends State
   case object WaitForWorkers extends State
 
-  case class Work(items: mutable.HashSet[String] = new mutable.HashSet)
+  case class Work(itemsLeft: mutable.HashSet[String] = new mutable.HashSet)
   object Work { def empty: Work = Work() }
 }
 
@@ -80,7 +80,7 @@ class MasterActor extends FSM[State, Work] {
     case Event(PersistenceReturn(items, true), state) =>
       println(s"Persistence actor succeeded")
       spawnWorkers(items)
-      goto(WaitForWorkers) using state.copy(items = state.items ++ items)
+      goto(WaitForWorkers) using state.copy(itemsLeft = mutable.HashSet(items:_*))
   }
 
   when(WaitForWorkers) {
@@ -102,8 +102,8 @@ class MasterActor extends FSM[State, Work] {
 
   private def handleWorkItemFinished(item: String, state: Work, success: Boolean): State = {
     println(s"Work ${if (success) "finished successfully" else "failed"} on item '$item'")
-    state.items -= item
-    if (state.items.isEmpty) {
+    state.itemsLeft -= item
+    if (state.itemsLeft.isEmpty) {
       println(s"All work items finished, resetting Master Actor")
       for (_ <- 0 until 10) println()
       goto(Idle)
