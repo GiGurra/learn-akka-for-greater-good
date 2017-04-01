@@ -33,18 +33,19 @@ class MasterActor extends FSM[State, WorkLeft] {
   }
 
   when(WaitForDbData) {
-    case Event(PersistenceReturn(_, false), _) =>
-      println(s"Persistence actor failed, resetting")
-      goto(Idle)
-    case Event(PersistenceReturn(items, true), state) =>
-      println(s"Persistence actor succeeded")
-      spawnWorkers(items)
-      goto(WaitForWorkers) using state.copy(itemsLeft = mutable.HashSet(items:_*))
+    case Event(PersistenceReturn(items, success), state) =>
+      if (success) {
+        println(s"Persistence actor succeeded")
+        spawnWorkers(items)
+        goto(WaitForWorkers) using state.copy(itemsLeft = mutable.HashSet(items: _*))
+      } else {
+        println(s"Persistence actor failed, resetting")
+        goto(Idle)
+      }
   }
 
   when(WaitForWorkers) {
-    case Event(WorkItemFinished(data, true), state) => handleWorkItemFinished(data, state, success = true)
-    case Event(WorkItemFinished(data, false), state) => handleWorkItemFinished(data, state, success = false)
+    case Event(WorkItemFinished(data, success), state) => handleWorkItemFinished(data, state, success = success)
   }
 
   initialize()
