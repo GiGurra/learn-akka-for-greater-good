@@ -2,7 +2,7 @@ package com.github.gigurra
 
 import java.util.concurrent.TimeUnit
 
-import akka.actor.{Actor, ActorSystem, Props, SupervisorStrategy}
+import akka.actor.{Actor, ActorSystem, PoisonPill, Props, SupervisorStrategy}
 import akka.pattern.{Backoff, BackoffSupervisor}
 import akka.routing.RoundRobinPool
 import com.github.gigurra.WorkerActor.DoWork
@@ -15,7 +15,7 @@ class MasterActor extends Actor {
 
   private val tickInterval = FiniteDuration(1, TimeUnit.SECONDS)
 
-  println(s"Starting $this with tick interval")
+  println(s"Starting $this:${self.path} with tick interval")
 
   private val supervisedWorkerProps = BackoffSupervisor.props(Backoff.onFailure(
     childProps = Props[WorkerActor],
@@ -25,7 +25,7 @@ class MasterActor extends Actor {
     randomFactor = 0.2
   ))
 
-  context.system.scheduler.schedule(FiniteDuration(0, TimeUnit.SECONDS), interval = tickInterval)(self ! Tick)
+  private val loop = context.system.scheduler.schedule(FiniteDuration(0, TimeUnit.SECONDS), interval = tickInterval)(self ! Tick)
 
   // Restart on failure with backoff
   private val workers = context.actorOf(RoundRobinPool(5).props(supervisedWorkerProps))
@@ -43,6 +43,11 @@ class MasterActor extends Actor {
       } else {
         workers ! DoWork(success = false)
       }
+  }
+
+  override def postStop(): Unit ={
+    println(s"$this died")
+    loop.cancel()
   }
 }
 
@@ -67,7 +72,12 @@ object WorkerActor {
 
 object FunWithAkka {
   def main(args: Array[String]): Unit = {
-    val actorSystem = ActorSystem()
-    val masterActor = actorSystem.actorOf(Props[MasterActor])
+    val actorSystem = ActorSystem("my-system")
+    val masterActor = actorSystem.actorOf(Props[MasterActor], name = "the-instance")
+    val masterActor2 = actorSystem.actorSelection("akka://my-system/user/the-instance")
+
+    actorSystem.scheduler.scheduleOnce(FiniteDuration(5, TimeUnit.SECONDS))(masterActor2 ! PoisonPill)
+
+
   }
 }
