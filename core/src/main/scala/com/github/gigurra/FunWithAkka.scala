@@ -18,11 +18,11 @@ class MasterActor extends Actor {
   println(s"Starting $this with tick interval")
 
   private val supervisedWorkerProps = BackoffSupervisor.props(Backoff.onFailure(
-    Props[WorkerActor],
-    "Worker",
+    childProps = Props[WorkerActor],
+    childName = "Worker",
     minBackoff = FiniteDuration(1, TimeUnit.SECONDS),
     maxBackoff = FiniteDuration(60, TimeUnit.SECONDS),
-    0.2
+    randomFactor = 0.2
   ))
 
   context.system.scheduler.schedule(FiniteDuration(0, TimeUnit.SECONDS), interval = tickInterval)(self ! Tick)
