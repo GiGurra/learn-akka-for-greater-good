@@ -9,38 +9,8 @@ import scala.collection.mutable
 import scala.concurrent.duration.{Duration, FiniteDuration}
 import scala.concurrent.ExecutionContext.Implicits.global
 
-case object LetsGo
-case class PersistenceReturn(data: Seq[String])
-case object WorkComplete
-
-class PersistenceActor extends Actor {
-  self ! LetsGo
-  override def receive: Receive = {
-    case LetsGo =>
-      println(s"$this fetching data from db")
-      if (math.random < 0.5) {
-        println(s"$this: OK!")
-        context.parent ! PersistenceReturn(Seq("a", "b", "c"))
-      } else {
-        println(s"$this: FAIL!")
-        throw new IOException(s"oh noes, $this failed")
-      }
-  }
-}
-
-class WorkerActor(data: String) extends Actor {
-  self ! LetsGo
-  override def receive: Receive = {
-    case LetsGo =>
-      println(s"$this doing work on: '$data'")
-      if (math.random < 0.5) {
-        println(s"$this: OK!")
-        context.parent ! WorkComplete
-      } else {
-        println(s"$this: FAIL!")
-        throw new IOException(s"oh noes, $this failed")
-      }
-  }
+object FunWithAkka extends App {
+  ActorSystem().actorOf(Props[MasterActor])
 }
 
 class MasterActor extends Actor {
@@ -94,9 +64,36 @@ class MasterActor extends Actor {
   }
 }
 
-object FunWithAkka {
-  def main(args: Array[String]): Unit = {
-    val actorSystem = ActorSystem("my-system")
-    actorSystem.actorOf(Props[MasterActor], name = "the-instance")
+case object LetsGo
+case class PersistenceReturn(data: Seq[String])
+case object WorkComplete
+
+class PersistenceActor extends Actor {
+  self ! LetsGo
+  override def receive: Receive = {
+    case LetsGo =>
+      println(s"$this fetching data from db")
+      if (math.random < 0.5) {
+        println(s"$this: OK!")
+        context.parent ! PersistenceReturn(Seq("a", "b", "c"))
+      } else {
+        println(s"$this: FAIL!")
+        throw new IOException(s"oh noes, $this failed")
+      }
+  }
+}
+
+class WorkerActor(data: String) extends Actor {
+  self ! LetsGo
+  override def receive: Receive = {
+    case LetsGo =>
+      println(s"$this doing work on: '$data'")
+      if (math.random < 0.5) {
+        println(s"$this: OK!")
+        context.parent ! WorkComplete
+      } else {
+        println(s"$this: FAIL!")
+        throw new IOException(s"oh noes, $this failed")
+      }
   }
 }
